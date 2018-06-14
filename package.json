@@ -1,0 +1,24 @@
+{
+  "fitbit": {
+    "appUUID": "ce7dd4f1-88d3-42a0-94cf-f3a0f41171e7",
+    "appType": "app",
+    "appDisplayName": "UPMC Dash",
+    "iconFile": "resources/icon.png",
+    "wipeColor": "#2196f3",
+    "requestedPermissions": [
+      "access_activity",
+      "access_heart_rate",
+      "access_internet",
+      "run_background"
+    ],
+    "buildTargets": [
+      "higgs",
+      "meson"
+    ],
+    "i18n": {
+      "en": {
+        "name": "UPMC Dash"
+      }
+    }
+  }
+}
