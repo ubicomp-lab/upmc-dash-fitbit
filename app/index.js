@@ -18,7 +18,7 @@ var reasonList = document.getElementById("reason-list");
 var timeLabel = document.getElementById("time-label");
 var batteryLevel = document.getElementById("battery-percentage");
 var batteryIcon = document.getElementById("battery-icon");
-var connStatus = document.getElementById("connection-status");
+// var connStatus = document.getElementById("connection-status");
 var snoozeButton =document.getElementById("button-snooze");
 var okButton = document.getElementById("button-ok");
 var noButton = document.getElementById("button-no");
@@ -52,6 +52,7 @@ let alarm = null;
 let snoozeAlarm = null;
 let command_id = 0;
 let isSnoozeSet = false;
+let isNoDisturb = false;
 
 
 //prompt sent to the phone
@@ -61,10 +62,12 @@ var MINIMESSAGE = "Great job!";
 var CLOSE = "Close";
 // command received from the phone
 var SNOOZE = "Snooze";
+var DO_NOT_DISTURB = "Do Not Disturb";
 // responses to be logged
 var OKAY = "Okay";
 var NO = "No";
 var OTHER = "Other";
+
 // vibration patterns
 var PING = "ping";
 var RING = "ring";
@@ -75,11 +78,11 @@ var ONEHOUR = 60;
 var TWOHOURS = 120;  
 var ONEMINUTE = 60000;   
 var THRESHOLD = 50;
-var MINITHRESHOLD = 10;  
+var MINITHRESHOLD = 30;  
 var MINITIMELIMIT = 15;   
 var SNOOZETIME = 900000; 
 var FIVE_MINUTES = 300000;
-var MEMORY_UPPERLIMIT = 0.9 * memory.js.total;
+var MEMORY_UPPERLIMIT = memory.js.total;
 
 
 // var ONEHOUR = 60;   
@@ -92,19 +95,20 @@ var MEMORY_UPPERLIMIT = 0.9 * memory.js.total;
 // var FIVE_MINUTES = 60000;
 
 
-// // Suppress the system default action for the "back" physical button
-// document.onkeypress = function(e) {
-//   e.preventDefault();
-//   console.log("Key pressed: " + e.key);
-// }
+// Suppress the system default action for the "back" physical button
+document.onkeypress = function(e) {
+  e.preventDefault();
+  console.log("Key pressed: " + e.key);
+}
 
 
 // constantly check: 1)if it's time to start the app; 2)the connection status
 setInterval(function() {
-  connStatus.text = messaging.peerSocket.readyState == messaging.peerSocket.OPEN ? "(Status: Connected)" : "(Status: Disconnected)";
+  // connStatus.text = messaging.peerSocket.readyState == messaging.peerSocket.OPEN ? "(Status: Connected)" : "(Status: Disconnected)";
   stepCount.text = today.adjusted.steps;
   if (!isSessionOn &&  nextInterval!=null && checkTime() ){
     isSessionOn = true;
+    isNoDisturb = false;
     console.log("The real session is on!");
     startNewSession(); 
   }
@@ -137,7 +141,7 @@ function updateClock() {
   let hours = util.zeroPad(today.getHours());
   let mins = util.zeroPad(today.getMinutes());
   let isMorning = (hours/12)==0; 
-  if(hours%12 == 0 && !isMorning) timeLabel.text = `12:${mins}`;
+  if(((hours%12) == 0) && (!isMorning)) timeLabel.text = `12:${mins}`;
   else timeLabel.text = `${hours%12}:${mins}`;
 }
 
@@ -145,8 +149,6 @@ function updateClock() {
 function sendMessage(obj){
   // check if the peerSocket is open
   if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-  //   messaging.peerSocket.send(obj);
-   
     if(buffer.length > 0){
       buffer.push(obj);
       sendBuffer();
@@ -154,7 +156,13 @@ function sendMessage(obj){
       messaging.peerSocket.send(obj);
     }  
   }else{
-    if(memory.js.used < MEMORY_UPPERLIMIT) buffer.push(obj);
+    if(memory.js.used < 0.5*MEMORY_UPPERLIMIT) {
+      // skip the "0"s of the step counter per min
+      if(!(obj.type == 2 && obj.sensorData == 0)) buffer.push(obj);
+    } else if(memory.js.used < 0.9*MEMORY_UPPERLIMIT){
+      // skip logging SC and HR per min, and notifications
+      if(obj.type != 2 && obj.type !=4 && obj.notif == "undefined") buffer.push(obj);
+    }
   }
 }
 // Helper function to send buffered data
@@ -300,7 +308,7 @@ submitButton.onclick = function(evt) {
   setMainLayout();
   let reasons = "";
   checkboxes.forEach(function(element,index){
-    if(index == 3 && element.value == 1) {
+    if(index == 4 && element.value == 1) {
       if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
         messaging.peerSocket.send(OTHER);
       }
@@ -363,6 +371,10 @@ function showReasonList() {
   mainLayout.style.visibility = "hidden";
   responseLayout.style.visibility="hidden";
   feedbackLayout.style.visibility="hidden";
+  checkboxes.forEach(function(element,index){
+    element.value = 0;
+  });
+  reasonList.value = 0;
   reasonList.style.visibility = "visible";
   alarm = setTimeout(setMainLayout,ONEMINUTE);
 }
@@ -392,22 +404,25 @@ messaging.peerSocket.onmessage = function(evt) {
       if(message.command_id > command_id) {
         command_id = message.command_id;
         console.log("Now command_id is: " + command_id + " "+message.command);
-        setMainLayout();
-        clearTimeout(alarm);
-        if(message.command.trim() == SNOOZE.trim()) {
-          if(!isSnoozeSet) {
-            snoozeAlarm = setTimeout(function() {
-              setMiniSession();
-              if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-              messaging.peerSocket.send(NOTIF_NO_SNOOZE);
-              }
-              setResponseLayout(false,RING);
-            },SNOOZETIME);
-          }
-        } 
-        
+        if(message.command.trim() == DO_NOT_DISTURB.trim()) {
+          isNoDisturb = true;
+        } else {
+          setMainLayout();
+          clearTimeout(alarm);
+          if(message.command.trim() == SNOOZE.trim()) {
+            if(!isSnoozeSet) {
+              snoozeAlarm = setTimeout(function() {
+                setMiniSession();
+                if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+                messaging.peerSocket.send(NOTIF_NO_SNOOZE);
+                }
+                setResponseLayout(false,RING);
+              },SNOOZETIME);
+            }
+          } 
+        }
       }
-  }
+   }
 }
 
 
@@ -447,7 +462,7 @@ function collectData() {
     initialValue = 0; 
   } 
   let timeStamp = Date.now();
-  let type = 0;
+  let type = 2;
   let sensorData = diff;
   let data = {timeStamp,type,sensorData};
   if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
@@ -461,14 +476,18 @@ function collectData() {
     miniSteps = miniSteps + diff;
     if(miniSteps >= MINITHRESHOLD) {     
       miniSession = false;
-      if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-         if(checkTime()) messaging.peerSocket.send(MINIMESSAGE);
+      if(!isNoDisturb){
+        if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+          if(checkTime()) messaging.peerSocket.send(MINIMESSAGE);
+        }
       }
       type = 3;
       sensorData = miniSteps;
       data = {timeStamp,type,sensorData};
       if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
-      setFeedbackLayout(PING,APPRAISAL);
+      if(!isNoDisturb){
+        setFeedbackLayout(PING,APPRAISAL);
+      }
     }
     if(miniTimer == MINITIMELIMIT && miniSession) {    
       miniSession = false;
@@ -481,7 +500,7 @@ function collectData() {
   }
   // check if the threshold is reached already
   if(stepData >= THRESHOLD) {
-    type = curInterval == ONEHOUR? 1:2;
+    type = curInterval == ONEHOUR? 0:1;
     sensorData = stepData;
     data = {timeStamp,type,sensorData};
     if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
@@ -492,14 +511,16 @@ function collectData() {
   // if the current interval ends...
   if(timeCounter === curInterval) {
     //send notification
-    if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+    if(!isNoDisturb){
+      if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
         if(checkTime()) messaging.peerSocket.send(NOTIFICATION);
+      }
     }
-    type = curInterval == ONEHOUR? 1:2;
+    type = curInterval == ONEHOUR? 0:1;
     sensorData = stepData;
     data = {timeStamp,type,sensorData};
     if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
-    setResponseLayout(true,RING);
+    if(!isNoDisturb) setResponseLayout(true,RING);
     setMiniSession();
     startNewSession();
     return;

@@ -89,17 +89,20 @@ function updateSchedule() {
 }
 
 function checkCommand() {
+  // console.log("command id is: "+command_id);
   fetch('http://localhost:8080/check_command.php',{ method: 'GET'}).then(function(response) {
         return response.text();     
       }).then(function(obj) {
         var newObj = JSON.parse(obj);
         let id = newObj["id"];
+        // console.log("id is: "+id);
         let command = newObj["command"];
+    // if this is a reboot, then update the current command_id to be the latest id
         if(!isFirstRun) {
-          command_id = id; 
+          if(id!=false) command_id = id; 
           isFirstRun = true;
         }
-        if(id>command_id) {
+        if(id>command_id) {  // if the latest id is greater than current command_id, then deliver the message to watch
           command_id = id;
           let message = JSON.parse(JSON.stringify({command,command_id}));
           console.log("Got new command from phone: "+command);

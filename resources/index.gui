@@ -3,7 +3,7 @@
   <defs>
     <symbol id="main-screen">
       <text id="time-label" />
-      <text id="connection-status"/>
+<!--       <text id="connection-status"/> -->
       <text id="step-count">--</text>
       <text id="step-label">steps</text>
       <text id="battery-percentage" />
@@ -87,10 +87,16 @@
       </use>       
       <use href="#tile-list-item" class="tile">
         <use id="reason4" href="#checkbox-tile" class = "checkbox-item">
+          <set href="header/text" attributeName="text-buffer" to="Tired" />
+          <set href="header/text" attributeName="font-size" to="50" />
+        </use>
+      </use>
+      <use href="#tile-list-item" class="tile">
+        <use id="reason5" href="#checkbox-tile" class = "checkbox-item">
           <set href="header/text" attributeName="text-buffer" to="Other" />
           <set href="header/text" attributeName="font-size" to="50" />
         </use>
-      </use>       
+      </use>
       <use id = "footer" href="#footer-with-button" class="tile-list-item">
       </use>        
       </use>
