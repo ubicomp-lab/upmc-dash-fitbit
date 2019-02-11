@@ -62,7 +62,8 @@ var MINIMESSAGE = "Great job!";
 var CLOSE = "Close";
 // command received from the phone
 var SNOOZE = "Snooze";
-var DO_NOT_DISTURB = "Do Not Disturb";
+var DO_NOT_DISTURB = "Do Not Disturb On";
+var REMOVE_DO_NOT_DISTURB = "Do Not Disturb Off";
 // responses to be logged
 var OKAY = "Okay";
 var NO = "No";
@@ -406,7 +407,9 @@ messaging.peerSocket.onmessage = function(evt) {
         console.log("Now command_id is: " + command_id + " "+message.command);
         if(message.command.trim() == DO_NOT_DISTURB.trim()) {
           isNoDisturb = true;
-        } else {
+        }else if(message.command.trim() == REMOVE_DO_NOT_DISTURB.trim()) {
+          isNoDisturb = false;
+        }else {
           setMainLayout();
           clearTimeout(alarm);
           if(message.command.trim() == SNOOZE.trim()) {
