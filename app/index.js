@@ -32,14 +32,14 @@ var stepCount = document.getElementById("step-count");
 // globle variables
 let hrm = new HeartRateSensor();
 let initialValue = today.adjusted.steps;
-let timeCounter = 0;
+let timeCounter = 1;
 let hrData=0;
 let buffer = [];
 let lastStepCount = 0;
 let curInterval = null; 
 let nextInterval = null; 
 let miniSteps = 0;
-let miniTimer = 0;
+let miniTimer = 1;
 let timeSchedule = null; 
 let startHour = null;
 let startMin = null;
@@ -53,7 +53,9 @@ let snoozeAlarm = null;
 let command_id = 0;
 let isSnoozeSet = false;
 let isNoDisturb = false;
-
+let session_id_old = null;
+let session_id_new = null;
+var MEMORY_UPPERLIMIT = memory.js.total;
 
 //prompt sent to the phone
 var NOTIFICATION = "Ready?";
@@ -68,32 +70,31 @@ var REMOVE_DO_NOT_DISTURB = "Do Not Disturb Off";
 var OKAY = "Okay";
 var NO = "No";
 var OTHER = "Other";
-
 // vibration patterns
 var PING = "ping";
 var RING = "ring";
 var APPRAISAL = "Great job being active!";
 var BATTERY_WARNING = "Battery low. Please charge your Fitbit.";
+
+
 var LOOPINTERVAL_SHORT = 3000;   // we can change the looping interval arbitrarily
+// var ONEHOUR = 60;   
+// var TWOHOURS = 120;  
+// var ONEMINUTE = 60000;   
+// var THRESHOLD = 50;
+// var MINITHRESHOLD = 30;  
+// var MINITIMELIMIT = 15;   
+// var SNOOZETIME = 900000; 
+// var FIVE_MINUTES = 300000;
+
 var ONEHOUR = 60;   
 var TWOHOURS = 120;  
-var ONEMINUTE = 60000;   
+var ONEMINUTE = 6000;   
 var THRESHOLD = 50;
 var MINITHRESHOLD = 30;  
 var MINITIMELIMIT = 15;   
-var SNOOZETIME = 900000; 
-var FIVE_MINUTES = 300000;
-var MEMORY_UPPERLIMIT = memory.js.total;
-
-
-// var ONEHOUR = 60;   
-// var TWOHOURS = 120;  
-// var ONEMINUTE = 6000;   
-// var THRESHOLD = 50;
-// var MINITHRESHOLD = 10;  
-// var MINITIMELIMIT = 10;   
-// var SNOOZETIME = 60000; 
-// var FIVE_MINUTES = 60000;
+var SNOOZETIME = 60000; 
+var FIVE_MINUTES = 20000;
 
 
 // Suppress the system default action for the "back" physical button
@@ -103,8 +104,12 @@ document.onkeypress = function(e) {
 }
 
 
+
+
+
 // constantly check: 1)if it's time to start the app; 2)the connection status
 setInterval(function() {
+  console.log("now isNoDisturb is: "+isNoDisturb)
   // connStatus.text = messaging.peerSocket.readyState == messaging.peerSocket.OPEN ? "(Status: Connected)" : "(Status: Disconnected)";
   stepCount.text = today.adjusted.steps;
   if (!isSessionOn &&  nextInterval!=null && checkTime() ){
@@ -115,7 +120,13 @@ setInterval(function() {
   }
   // console.log("Watch connected? " + (messaging.peerSocket.readyState == messaging.peerSocket.OPEN ? "YES" : "no"));
 }, LOOPINTERVAL_SHORT);
- 
+
+
+
+
+
+
+
 // Update the clock every minute
 clock.granularity = "minutes";
 
@@ -199,27 +210,6 @@ function checkTime() {
     if(today >= morningTime && today < eveningTime) return true;
   }
   return false;
-  
-  // let hour = today.getHours();
-  // let min = today.getMinutes();
-  // if(startHour < endHour) {
-  //   if((hour > startHour && hour < endHour) || (hour == startHour && min >= startMin) || (hour == endHour && min < endMin)) return true;
-  //   return false;
-  // } else if(startHour > endHour) {
-  //   if((hour > endHour && hour < startHour) || (hour == startHour && min < startMin) || (hour == endHour && min >= endMin)) return false;
-  //   return true;
-  // } else {
-  //   if(startMin == endMin) {
-  //     return true;
-  //   } else if(startMin < endMin) {
-  //     if(hour == startHour && min >= startMin && min < endMin) return true;
-  //     return false;
-  //   } else {
-  //     if(hour == startHour && min >= endMin && min < startMin) return false;
-  //     return true;
-  //   }
-  // }
-  // return false;
 }
 
 
@@ -252,6 +242,10 @@ function checkBattery(percentage){
     batteryIcon.style.fill = "red";
   }
 }
+
+
+
+
 // -----------------------------------------------a series of onclick event listeners-------------------------------------------------
 okButton.onclick = function(evt) {
   console.log("ok-button is clicked!");
@@ -259,11 +253,14 @@ okButton.onclick = function(evt) {
   vibration.stop();
   // TO DO: save the timestamp and response to database!!!
   if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-        messaging.peerSocket.send(CLOSE);
+        let  prompt = CLOSE;
+        let sessionId = session_id_old;
+        messaging.peerSocket.send({prompt,sessionId});
   }
   let timeStamp = Date.now();
   let response = OKAY;
-  sendMessage({timeStamp,response});
+  let sessionId = session_id_old;
+  sendMessage({timeStamp,sessionId, response});
 }
 
 snoozeButton.onclick = function(evt) {
@@ -272,20 +269,25 @@ snoozeButton.onclick = function(evt) {
   vibration.stop();
   isSnoozeSet = true;
   if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-        messaging.peerSocket.send(CLOSE);
+        let  prompt = CLOSE;
+        let sessionId = session_id_old;
+        messaging.peerSocket.send({prompt,sessionId});
   }
   snoozeAlarm = setTimeout(function() {
     setMiniSession();
     if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-        messaging.peerSocket.send(NOTIF_NO_SNOOZE);
+        let  prompt = NOTIF_NO_SNOOZE;
+        let sessionId = session_id_old;
+        messaging.peerSocket.send({prompt,sessionId});
     }
     setResponseLayout(false,RING);
     isSnoozeSet = false;
   },SNOOZETIME); 
   // TO DO: save the timestamp and response to database!!!
   let timeStamp = Date.now();
+  let sessionId = session_id_old;
   let response = SNOOZE;
-  sendMessage({timeStamp,response});
+  sendMessage({timeStamp,sessionId, response});
 }
 
 noButton.onclick = function(evt) {
@@ -293,11 +295,14 @@ noButton.onclick = function(evt) {
   vibration.stop();
   showReasonList();
   if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-        messaging.peerSocket.send(CLOSE);
+        let  prompt = CLOSE;
+        let sessionId = session_id_old;
+        messaging.peerSocket.send({prompt,sessionId});
   }
   let timeStamp = Date.now();
+  let sessionId = session_id_old;
   let response = NO;
-  sendMessage({timeStamp,response});
+  sendMessage({timeStamp,sessionId, response});
 }
 
 feedbackLayout.onclick = function(evt) {
@@ -311,7 +316,9 @@ submitButton.onclick = function(evt) {
   checkboxes.forEach(function(element,index){
     if(index == 4 && element.value == 1) {
       if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-        messaging.peerSocket.send(OTHER);
+        let  prompt = OTHER;
+        let sessionId = session_id_old;
+        messaging.peerSocket.send({prompt,sessionId});
       }
     }
     reasons += element.value;
@@ -319,7 +326,8 @@ submitButton.onclick = function(evt) {
   });
   reasonList.value = 0;
   let timeStamp = Date.now();
-  sendMessage({timeStamp, reasons});
+  let sessionId = session_id_old;
+  sendMessage({timeStamp, sessionId, reasons});
 }
 // --------------------------------------------------functions to set layouts-----------------------------------------------------------------------
 
@@ -344,8 +352,9 @@ function setResponseLayout(snoozeOption,vibraPattern) {
     vibration.start(vibraPattern);
     alarm = setTimeout(setMainLayout,FIVE_MINUTES);
     let timeStamp = Date.now();
-    let notif = "Ready for a quick walk?";
-    sendMessage({timeStamp,notif});
+    let sessionId = session_id_old;
+    let notif = snoozeOption? 1:2;
+    sendMessage({timeStamp, sessionId, notif});
   }
 }
 
@@ -363,8 +372,9 @@ function setFeedbackLayout(vibraPattern,message) {
     vibration.start(vibraPattern);
     alarm = setTimeout(setMainLayout,FIVE_MINUTES);
     let timeStamp = Date.now();
-    let notif = message;
-    sendMessage({timeStamp,notif});
+    let sessionId = session_id_old;
+    let notif = message == APPRAISAL? 0:3;
+    sendMessage({timeStamp,sessionId,notif});
   }
 }
 function showReasonList() { 
@@ -379,6 +389,8 @@ function showReasonList() {
   reasonList.style.visibility = "visible";
   alarm = setTimeout(setMainLayout,ONEMINUTE);
 }
+
+
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 
@@ -407,6 +419,7 @@ messaging.peerSocket.onmessage = function(evt) {
         console.log("Now command_id is: " + command_id + " "+message.command);
         if(message.command.trim() == DO_NOT_DISTURB.trim()) {
           isNoDisturb = true;
+          console.log(isNoDisturb);
         }else if(message.command.trim() == REMOVE_DO_NOT_DISTURB.trim()) {
           isNoDisturb = false;
         }else {
@@ -417,7 +430,9 @@ messaging.peerSocket.onmessage = function(evt) {
               snoozeAlarm = setTimeout(function() {
                 setMiniSession();
                 if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-                messaging.peerSocket.send(NOTIF_NO_SNOOZE);
+                  let  prompt = NOTIF_NO_SNOOZE;
+                  let sessionId = session_id_old;
+                  messaging.peerSocket.send({prompt,sessionId});
                 }
                 setResponseLayout(false,RING);
               },SNOOZETIME);
@@ -436,21 +451,23 @@ function setMiniSession() {
   console.log("Mini-session starts!");
   miniSession = true;
   miniSteps = 0;
-  miniTimer = 0;
+  miniTimer = 1;
 }
 
 // Function to start a new session
 function startNewSession(){
-  
+    // generate a new uuid for the new session
+    session_id_old = session_id_new;
+    session_id_new = util.guid();
     // initialize the variables/counters
     console.log("The new session starts!");
-    timeCounter = 0;
+    timeCounter = 1;
     lastStepCount = 0;
     initialValue = today.adjusted.steps; 
     curInterval = nextInterval;
     clearInterval(handle);
     handle = setInterval(collectData,ONEMINUTE); 
-    collectData();
+    // collectData();
 
 }
 
@@ -467,26 +484,29 @@ function collectData() {
   let timeStamp = Date.now();
   let type = 2;
   let sensorData = diff;
-  let data = {timeStamp,type,sensorData};
+  let sessionId = session_id_new;
+  let data = {timeStamp,sessionId,type,sensorData};
   if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
   sensorData = hrData;
   type = 4;
-  data = {timeStamp,type,sensorData};
+  data = {timeStamp,sessionId,type,sensorData};
   if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
   console.log("Time is: "+timeCounter+", step count is: "+stepData +", diff is: "+diff);       
    // check for mini-session
   if(miniSession) {
+    sessionId = session_id_old;
     miniSteps = miniSteps + diff;
     if(miniSteps >= MINITHRESHOLD) {     
       miniSession = false;
       if(!isNoDisturb){
         if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-          if(checkTime()) messaging.peerSocket.send(MINIMESSAGE);
+          let  prompt = MINIMESSAGE;
+          if(checkTime()) messaging.peerSocket.send({prompt,sessionId});
         }
       }
       type = 3;
       sensorData = miniSteps;
-      data = {timeStamp,type,sensorData};
+      data = {timeStamp,sessionId,type,sensorData};
       if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
       if(!isNoDisturb){
         setFeedbackLayout(PING,APPRAISAL);
@@ -496,36 +516,41 @@ function collectData() {
       miniSession = false;
       type = 3;
       sensorData = miniSteps;
-      data = {timeStamp,type,sensorData};
+      data = {timeStamp,sessionId,type,sensorData};
       if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
     }
     miniTimer = miniTimer + 1;  
   }
   // check if the threshold is reached already
+  sessionId = session_id_new;
   if(stepData >= THRESHOLD) {
+    startNewSession();
     type = curInterval == ONEHOUR? 0:1;
     sensorData = stepData;
-    data = {timeStamp,type,sensorData};
+    data = {timeStamp,sessionId,type,sensorData};
     if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
     setMainLayout();
-    startNewSession();
     return;
   } 
   // if the current interval ends...
   if(timeCounter === curInterval) {
+    startNewSession();
     //send notification
     if(!isNoDisturb){
       if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-        if(checkTime()) messaging.peerSocket.send(NOTIFICATION);
+        let  prompt = NOTIFICATION;
+        messaging.peerSocket.send({prompt,sessionId});
       }
     }
     type = curInterval == ONEHOUR? 0:1;
     sensorData = stepData;
-    data = {timeStamp,type,sensorData};
+    data = {timeStamp,sessionId,type,sensorData};
     if(checkTime()) sendMessage(JSON.parse(JSON.stringify(data)));
-    if(!isNoDisturb) setResponseLayout(true,RING);
+    if(!isNoDisturb) {
+      console.log("look here: "+isNoDisturb);
+      setResponseLayout(true,RING);
+    }
     setMiniSession();
-    startNewSession();
     return;
   }
   lastStepCount = stepData;
@@ -543,6 +568,4 @@ setMainLayout();
 hrm.start();
 batteryLevel.text = Math.floor(battery.chargeLevel) + "%";
 checkBattery(Math.floor(battery.chargeLevel));
-
-
 

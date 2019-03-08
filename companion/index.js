@@ -37,22 +37,19 @@ setInterval(function() {
 // Listen for the onmessage event
 messaging.peerSocket.onmessage = function(evt) {
   let message = evt.data;
-  if(typeof message === "string") {
-    // if(message.trim() === NOTIFICATION.trim()) {
-      console.log("Companion received: "+JSON.stringify(message));
-      postData({message},'http://localhost:8080/send_prompt.php');
-     // }
-  }else {
-    if(typeof message.type != "undefined"){
+  if(typeof message.prompt != "undefined") {
+      // console.log("Companion received: "+JSON.stringify(message));
+      postData(message,'http://localhost:8080/send_prompt.php');
+  }else if(typeof message.type != "undefined"){
       console.log("Companion received: "+JSON.stringify(message));
       postData(message,'http://localhost:8080/store_data.php');
-    } else if(typeof message.reasons != "undefined"){     
+  } else if(typeof message.reasons != "undefined"){
+      console.log("Companion received: "+JSON.stringify(message));
       postData(message,'http://localhost:8080/save_reasons.php');
-    } else if(typeof message.response != "undefined"){     
+  } else if(typeof message.response != "undefined"){     
       postData(message,'http://localhost:8080/save_response.php');
-    } else if(typeof message.notif != "undefined"){
+  } else if(typeof message.notif != "undefined"){
       postData(message,'http://localhost:8080/save_notif.php');
-    }
   }
 }
 
@@ -89,13 +86,13 @@ function updateSchedule() {
 }
 
 function checkCommand() {
-  // console.log("command id is: "+command_id);
+  console.log("command id is: "+command_id);
   fetch('http://localhost:8080/check_command.php',{ method: 'GET'}).then(function(response) {
         return response.text();     
       }).then(function(obj) {
         var newObj = JSON.parse(obj);
         let id = newObj["id"];
-        // console.log("id is: "+id);
+        console.log("id is: "+id);
         let command = newObj["command"];
     // if this is a reboot, then update the current command_id to be the latest id
         if(!isFirstRun) {
