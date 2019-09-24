@@ -1,6 +1,7 @@
 import * as messaging from "messaging";
 import { me } from "companion";
 import { settingsStorage } from "settings";
+import asap from "fitbit-asap/companion";
 
 
 // global variables
@@ -16,7 +17,7 @@ var ITEM = "done";
 
 
 // check if this is the first time to run the app
-if(settingsStorage.getItem(KEY)==null) {
+if (settingsStorage.getItem(KEY) == null) {
   console.log("this is the first time we run the app");
   isFirstRun = true;
   settingsStorage.setItem(KEY, ITEM);
@@ -27,7 +28,7 @@ if(settingsStorage.getItem(KEY)==null) {
 
 
 // Constantly check: 1)the connection status and update the status to the database; 2)if there's new command sent from the phone
-setInterval(function() {
+setInterval(function () {
   updateConnStatus();
   checkCommand();
   updateInterval();
@@ -35,107 +36,104 @@ setInterval(function() {
 }, LOOPINTERVAL_SHORT);
 
 // Listen for the onmessage event
-messaging.peerSocket.onmessage = function(evt) {
-  let message = evt.data;
-  if(typeof message.prompt != "undefined") {
-      // console.log("Companion received: "+JSON.stringify(message));
-      postData(message,'http://localhost:8080/send_prompt.php');
-  }else if(typeof message.type != "undefined"){
-      console.log("Companion received: "+JSON.stringify(message));
-      postData(message,'http://localhost:8080/store_data.php');
-  } else if(typeof message.reasons != "undefined"){
-      console.log("Companion received: "+JSON.stringify(message));
-      postData(message,'http://localhost:8080/save_reasons.php');
-  } else if(typeof message.response != "undefined"){     
-      postData(message,'http://localhost:8080/save_response.php');
-  } else if(typeof message.notif != "undefined"){
-      postData(message,'http://localhost:8080/save_notif.php');
+asap.onmessage = message => {
+  console.log("Companion received: "+JSON.stringify(message));
+  if (typeof message.prompt != "undefined") {
+    postData(message, 'http://localhost:8080/send_prompt.php');
+  } else if (typeof message.type != "undefined") {
+    postData(message, 'http://localhost:8080/store_data.php');
+  } else if (typeof message.reasons != "undefined") {
+    postData(message, 'http://localhost:8080/save_reasons.php');
+  } else if (typeof message.response != "undefined") {
+    postData(message, 'http://localhost:8080/save_response.php');
+  } else if (typeof message.notif != "undefined") {
+    postData(message, 'http://localhost:8080/save_notif.php');
   }
 }
 
 function updateInterval() {
-  fetch('http://localhost:8080/retrieve_data.php',{ method: 'GET'}).then(function(response) {
-        return response.text();     
-      }).then(function(text) {
-        if(text.trim() != nextInfo.trim()) {
-           console.log("Got new survey info from server: "+ text);
-           if(messaging.peerSocket.readyState === messaging.peerSocket.OPEN){
-              messaging.peerSocket.send(text);
-              nextInfo = text;
-           }
-         }        
-      }).catch(function(error) {
-        console.log(error); 
-      });
+  fetch('http://localhost:8080/retrieve_data.php', { method: 'GET' }).then(function (response) {
+    return response.text();
+  }).then(function (text) {
+    if (text.trim() != nextInfo.trim()) {
+      console.log("Got new survey info from server: " + text);
+      if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+        messaging.peerSocket.send(text);
+        nextInfo = text;
+      }
+    }
+  }).catch(function (error) {
+    console.log(error);
+  });
 }
 
 function updateSchedule() {
-  fetch('http://localhost:8080/retrieve_time.php',{ method: 'GET'}).then(function(response) {
-        return response.text();     
-      }).then(function(text) {
-         if(text.trim() != timeSchedule.trim()) {
-           console.log("Got new schedule from server: "+ text);
-           if(messaging.peerSocket.readyState === messaging.peerSocket.OPEN){
-             messaging.peerSocket.send(text);
-             timeSchedule = text;
-           }
-         }        
-      }).catch(function(error) {
-        console.log(error); 
-      });
+  fetch('http://localhost:8080/retrieve_time.php', { method: 'GET' }).then(function (response) {
+    return response.text();
+  }).then(function (text) {
+    if (text.trim() != timeSchedule.trim()) {
+      console.log("Got new schedule from server: " + text);
+      if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+        messaging.peerSocket.send(text);
+        timeSchedule = text;
+      }
+    }
+  }).catch(function (error) {
+    console.log(error);
+  });
 }
 
 function checkCommand() {
-  console.log("command id is: "+command_id);
-  fetch('http://localhost:8080/check_command.php',{ method: 'GET'}).then(function(response) {
-        return response.text();     
-      }).then(function(obj) {
-        var newObj = JSON.parse(obj);
-        let id = newObj["id"];
-        console.log("id is: "+id);
-        let command = newObj["command"];
+  // console.log("command id is: "+command_id);
+  fetch('http://localhost:8080/check_command.php', { method: 'GET' }).then(function (response) {
+    return response.text();
+  }).then(function (obj) {
+    var newObj = JSON.parse(obj);
+    let id = newObj["id"];
+    // console.log("id is: "+id);
+    let command = newObj["command"];
     // if this is a reboot, then update the current command_id to be the latest id
-        if(!isFirstRun) {
-          if(id!=false) command_id = id; 
-          isFirstRun = true;
-        }
-        if(id>command_id) {  // if the latest id is greater than current command_id, then deliver the message to watch
-          command_id = id;
-          let message = JSON.parse(JSON.stringify({command,command_id}));
-          console.log("Got new command from phone: "+command);
-          if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
-             messaging.peerSocket.send(message);
-          }
-        }      
-      }).catch(function(error) {
-        console.log(error); 
-      });
+    if (!isFirstRun) {
+      if (id != false) command_id = id;
+      isFirstRun = true;
+    }
+    if (id > command_id) {  // if the latest id is greater than current command_id, then deliver the message to watch
+      command_id = id;
+      let message = JSON.parse(JSON.stringify({ command, command_id }));
+      console.log("Got new command from phone: " + command);
+      options = { "timeout": 60000 };
+      asap.send(message, options);
+
+    }
+  }).catch(function (error) {
+    console.log(error);
+  });
 }
 
 function updateConnStatus() {
-  let curStatus = messaging.peerSocket.readyState == messaging.peerSocket.OPEN ? true:false;
+  let curStatus = messaging.peerSocket.readyState == messaging.peerSocket.OPEN ? true : false;
   // console.log("Companion connection status: "+curStatus);
-  if(isConnectionOn == null || isConnectionOn != curStatus) {
+  if (isConnectionOn == null || isConnectionOn != curStatus) {
     isConnectionOn = curStatus;
-    let message = curStatus? 1:0;
-    console.log("Sent connection status: "+JSON.stringify(message));
-    postData({message},'http://localhost:8080/update_conn.php');
+    let message = curStatus ? 1 : 0;
+    console.log("Sent connection status: " + JSON.stringify(message));
+    postData({ message }, 'http://localhost:8080/update_conn.php');
   }
 }
 
-function postData(obj,link) {
-    let init = { 
-        method: 'POST', 
-        body: JSON.stringify(obj),  
-        headers: new Headers()
-      };
-      fetch(link,init).then(function(response) { 
-      return response.text();
-      }).then(function(text) {
-      console.log("Got response from server!"+text);
-      }).catch(function(error) {
-      console.log(error);
-      });
+function postData(obj, link) {
+  let init = {
+    method: 'POST',
+    body: JSON.stringify(obj),
+    headers: new Headers()
+  };
+  fetch(link, init).then(function (response) {
+    return response.text();
+  }).then(function (text) {
+    console.log("Got response from server!" + text);
+  }).catch(function (error) {
+    console.log(error);
+  });
 }
 
 
