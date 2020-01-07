@@ -21,6 +21,26 @@
   y: 90%;
   fill: white;
 }
+
+#total {
+  font-size: 24;
+  font-family: System-Regular;
+  text-length: 32;
+  text-anchor: middle;
+  x: 50%;
+  y: 82%;
+  fill: white;
+}
+
+#retention {
+  font-size: 24;
+  font-family: System-Regular;
+  text-length: 32;
+  text-anchor: middle;
+  x: 50%;
+  y: 90%;
+  fill: white;
+}
 #step-count {
   font-size: 40;
   font-family: System-Bold;

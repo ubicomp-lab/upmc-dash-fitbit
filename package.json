@@ -1,6 +1,5 @@
 {
   "fitbit": {
-    "appUUID": "ce7dd4f1-88d3-42a0-94cf-f3a0f41171e7",
     "appType": "app",
     "appDisplayName": "UPMC Dash",
     "iconFile": "resources/icon.png",
@@ -21,7 +20,8 @@
         "name": "UPMC Dash"
       }
     },
-    "defaultLanguage": "en-US"
+    "defaultLanguage": "en-US",
+    "appUUID": "9f5fa006-78b6-4ddc-96c3-4f05af880164"
   },
   "devDependencies": {
     "@fitbit/sdk": "~3.1.0",
@@ -31,7 +31,7 @@
     "build": "fitbit-build"
   },
   "dependencies": {
-    "fitbit-asap": "^1.2.1",
+    "fitbit-asap": "^1.2.3",
     "io-ts": "^1.8.2"
   }
 }

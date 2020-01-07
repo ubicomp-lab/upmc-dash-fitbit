@@ -1,9 +1,13 @@
-<svg class="background">
+<!-- <svg class="background"> -->
+<svg>
+  <image id="background" href="black.jpeg" />
 <!--   symbol for the main layout on the watch -->
   <defs>
     <symbol id="main-screen">
       <text id="time-label" />
 <!--       <text id="connection-status"/> -->
+      <!-- <text id = "total">total: 0</text> -->
+      <!-- <text id = "retention">retention: 0</text> -->
       <text id="step-count">--</text>
       <text id="step-label">steps</text>
       <text id="battery-percentage" />

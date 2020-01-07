@@ -9,6 +9,7 @@ import { charger } from "power";
 import { me } from "appbit";
 import asap from "fitbit-asap/app";
 import * as messaging from "messaging";
+import { readFileSync, writeFileSync } from "fs";
 
 // UI elements
 var mainLayout = document.getElementById("main-layout");
@@ -21,12 +22,13 @@ var batteryIcon = document.getElementById("battery-icon");
 var snoozeButton = document.getElementById("button-snooze");
 var okButton = document.getElementById("button-ok");
 var noButton = document.getElementById("button-no");
-var tiles = reasonList.getElementsByClassName("tile");
+// var tiles = reasonList.getElementsByClassName("tile");
 var checkboxes = document.getElementsByClassName("checkbox-item");
 
 var submitButton = document.getElementById("submit-button");
 var notifText = document.getElementById("notif-textarea");
 var stepCount = document.getElementById("step-count");
+
 
 // global variables
 let initialValue = today.adjusted.steps;
@@ -52,8 +54,9 @@ let isNoDisturb = false;
 let session_id_old = null;
 let session_id_new = null;
 
-let options_short = { "timeout": 60000 };
-let options_long = { "timeout": 259200000 }
+// let options_short = { "timeout": 60000 };
+// let options_long = { "timeout": 259200000 }
+
 
 //prompt sent to the phone
 var NOTIFICATION = "Ready?";
@@ -97,6 +100,79 @@ var FIVE_MINUTES = 300000;
 // var SNOOZETIME = 60000; 
 // var FIVE_MINUTES = 30000;
 
+// for logging and debugging ///////////////////////////////////
+let options_long = { "timeout": 25920000000 }     // remember to change it back later
+// var screenColor = document.getElementById("background")   // remember to change this later after done with debug
+// var total = document.getElementById("total")
+// var retention = document.getElementById("retention")
+// var num_total = 0
+// var num_retention = 0
+const debug = true
+
+function checkRetention() {
+    let queue = []
+    try {
+        queue = readFileSync("_asap_queue", "cbor")
+        // Ensure that the queue is an array
+        if (!Array.isArray(queue)) {
+            queue = []
+        }
+    }
+    // If a saved queue could not be loaded
+    catch (error) {
+        // Continue with an empty queue
+        queue = []
+    }
+    num_retention = queue.length;
+    console.log("Number of retention on disk: " + num_retention)
+    retention.text = "retention: " + num_retention
+}
+
+
+function checkTotal() {
+    console.log("Total number of records generated since start: " + num_total)
+    total.text = "total: " + num_total
+}
+
+
+///////////////////////////////////////////////////////////////
+
+function retrieveTimeScheduleAndNextInterval() {
+    try {
+        timeSchedule = readFileSync("time_schedule", "cbor")
+        startHour = parseInt(timeSchedule.substr(0, 2));
+        startMin = parseInt(timeSchedule.substr(2, 2));
+        endHour = parseInt(timeSchedule.substr(4, 2));
+        endMin = parseInt(timeSchedule.substr(6, 2));
+        debug && console.log("Retrieved time schedule from disk: " + timeSchedule);
+    } catch (error) {
+        debug && console.log("Never saved any time schedule on disk yet!")
+    }
+    try {
+        let json_data = readFileSync("next_interval","cbor")
+        nextInterval = json_data.nextInterval;
+        debug && console.log("Retrieved next interval from disk: " + nextInterval);
+    } catch (error) {
+        debug && console.log("Never saved any next interval on disk yet!")
+    }
+}
+
+function writeTimeScheduleOnDisk() {
+    writeFileSync("time_schedule", timeSchedule, "cbor")
+}
+
+function writeNextIntervalOnDisk() {
+    let json_data = { nextInterval }
+    writeFileSync("next_interval", json_data, "cbor")
+}
+
+
+// messaging.peerSocket.onerror = function (err) {
+//     // Handle any errors
+//     console.log("Connection error: " + err.code + " - " + err.message);
+// }
+
+
 // prevent the app from being killed by the system
 me.appTimeoutEnabled = false;
 
@@ -104,7 +180,7 @@ me.appTimeoutEnabled = false;
 // Suppress the system default action for the "back" physical button
 document.onkeypress = function (e) {
     e.preventDefault();
-    console.log("Key pressed: " + e.key);
+    debug && console.log("Key pressed: " + e.key);
 }
 
 
@@ -116,10 +192,13 @@ setInterval(function () {
     if (!isSessionOn && nextInterval != null && checkTime()) {
         isSessionOn = true;
         isNoDisturb = false;  // reset DND mode to be off
-        console.log("The real session is on!");
+        debug && console.log("The real session is on!");
         startNewSession();
+        // screenColor.href = "cyan.png"
     }
-    // console.log("Watch connected? " + (messaging.peerSocket.readyState == messaging.peerSocket.OPEN ? "YES" : "no"));
+    debug && console.log(messaging.peerSocket.readyState == messaging.peerSocket.OPEN ? "(Status: Connected)" : "(Status: Disconnected)");
+    // debug && checkTotal()
+    // debug && checkRetention()
 }, LOOPINTERVAL_SHORT);
 
 
@@ -202,31 +281,41 @@ function checkBattery(percentage) {
 
 // -----------------------------------------------a series of onclick event listeners-------------------------------------------------
 okButton.onclick = function (evt) {
-    console.log("ok-button is clicked!");
+    debug && console.log("ok-button is clicked!");
     setMainLayout();
     vibration.stop();
     // TO DO: save the timestamp and response to database!!!
     let prompt = CLOSE;
-    asap.send({ prompt, "sessionId":session_id_old }, options_short);
+    // asap.send({ prompt, "sessionId": session_id_old }, options_short);
+    if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+        messaging.peerSocket.send({ prompt, "sessionId": session_id_old });
+    }
     let timeStamp = Date.now();
     let response = OKAY;
-    asap.send({ timeStamp, "sessionId":session_id_old, response }, options_long);
+    asap.send({ timeStamp, "sessionId": session_id_old, response }, options_long);
+    // num_total += 1
 }
 
 snoozeButton.onclick = function (evt) {
-    console.log("snooze-button is clicked!");
+    debug && console.log("snooze-button is clicked!");
     setMainLayout();
     vibration.stop();
     isSnoozeSet = true;
 
     let prompt = CLOSE;
-    asap.send({ prompt, "sessionId":session_id_old }, options_short);
+    // asap.send({ prompt, "sessionId": session_id_old }, options_short);
+    if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+        messaging.peerSocket.send({ prompt, "sessionId": session_id_old });
+    }
 
     snoozeAlarm = setTimeout(function () {
         setMiniSession();
 
         let prompt = NOTIF_NO_SNOOZE;
-        asap.send({ prompt, "sessionId":session_id_old }, options_short);
+        // asap.send({ prompt, "sessionId": session_id_old }, options_short);
+        if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+            messaging.peerSocket.send({ prompt, "sessionId": session_id_old });
+        }
 
         setResponseLayout(false, RING);
         isSnoozeSet = false;
@@ -234,20 +323,27 @@ snoozeButton.onclick = function (evt) {
     // TO DO: save the timestamp and response to database!!!
     let timeStamp = Date.now();
     let response = SNOOZE;
-    asap.send({ timeStamp, "sessionId":session_id_old, response }, options_long);
+    asap.send({ timeStamp, "sessionId": session_id_old, response }, options_long);
+    // num_total += 1
+
 }
 
 noButton.onclick = function (evt) {
-    console.log("no-button is clicked!");
+    debug && console.log("no-button is clicked!");
     vibration.stop();
     showReasonList();
 
     let prompt = CLOSE;
-    asap.send({ prompt, "sessionId":session_id_old }, options_short);
+    // asap.send({ prompt, "sessionId": session_id_old }, options_short);
+    if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+        messaging.peerSocket.send({ prompt, "sessionId": session_id_old });
+    }
 
     let timeStamp = Date.now();
     let response = NO;
-    asap.send({ timeStamp, "sessionId":session_id_old, response }, options_long);
+    asap.send({ timeStamp, "sessionId": session_id_old, response }, options_long);
+    // num_total += 1
+
 }
 
 feedbackLayout.onclick = function (evt) {
@@ -262,7 +358,10 @@ submitButton.onclick = function (evt) {
         if (index == 4 && element.value == 1) {
 
             let prompt = OTHER;
-            asap.send({ prompt, "sessionId":session_id_old }, options_short);
+            // asap.send({ prompt, "sessionId": session_id_old }, options_short);
+            if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+                messaging.peerSocket.send({ prompt, "sessionId": session_id_old });
+            }
 
         }
         reasons += element.value;
@@ -270,7 +369,9 @@ submitButton.onclick = function (evt) {
     });
     reasonList.value = 0;
     let timeStamp = Date.now();
-    asap.send({ timeStamp, "sessionId":session_id_old, reasons }, options_long);
+    asap.send({ timeStamp, "sessionId": session_id_old, reasons }, options_long);
+    // num_total += 1
+
 }
 
 // --------------------------------------------------functions to set layouts-----------------------------------------------------------------------
@@ -297,7 +398,9 @@ function setResponseLayout(snoozeOption, vibraPattern) {
         alarm = setTimeout(setMainLayout, FIVE_MINUTES);
         let timeStamp = Date.now();
         let notif = snoozeOption ? 1 : 2;
-        asap.send({ timeStamp, "sessionId":session_id_old, notif }, options_long);
+        asap.send({ timeStamp, "sessionId": session_id_old, notif }, options_long);
+        // num_total += 1
+
     }
 }
 
@@ -317,7 +420,9 @@ function setFeedbackLayout(vibraPattern, message) {
         let timeStamp = Date.now();
 
         let notif = message == APPRAISAL ? 0 : 3;
-        asap.send({ timeStamp, "sessionId":session_id_old, notif }, options_long);
+        asap.send({ timeStamp, "sessionId": session_id_old, notif }, options_long);
+        // num_total += 1
+
     }
 }
 
@@ -342,30 +447,36 @@ function showReasonList() {
 messaging.peerSocket.onmessage = function (evt) {
     let message = evt.data;
     if (typeof message === "string") {
-        console.log("Watch received: " + message);
+        debug && console.log("Watch received: " + message);
         if (message.trim() === ">=7".trim()) {
-            console.log("Next interval has been changed to two hours");
+            debug && console.log("Next interval has been changed to two hours");
             nextInterval = TWOHOURS;
+            writeNextIntervalOnDisk();
         } else if (message.trim() === "<7".trim()) {
-            console.log("Next interval has been changed to one hour");
+            debug && console.log("Next interval has been changed to one hour");
             nextInterval = ONEHOUR;
+            writeNextIntervalOnDisk();
         } else {
             timeSchedule = message;  // like "07002030",etc.
             startHour = parseInt(timeSchedule.substr(0, 2));
             startMin = parseInt(timeSchedule.substr(2, 2));
             endHour = parseInt(timeSchedule.substr(4, 2));
             endMin = parseInt(timeSchedule.substr(6, 2));
+            writeTimeScheduleOnDisk();
         }
     }
 }
+
+
+
 asap.onmessage = message => {
 
     if (message.command_id > command_id) {
         command_id = message.command_id;
-        console.log("Now command_id is: " + command_id + " " + message.command);
+        debug && console.log("Now command_id is: " + command_id + " " + message.command);
         if (message.command.trim() == DO_NOT_DISTURB.trim()) {
             isNoDisturb = true;
-            console.log(isNoDisturb);
+            debug && console.log(isNoDisturb);
         } else if (message.command.trim() == REMOVE_DO_NOT_DISTURB.trim()) {
             isNoDisturb = false;
         } else {
@@ -377,7 +488,10 @@ asap.onmessage = message => {
                         setMiniSession();
 
                         let prompt = NOTIF_NO_SNOOZE;
-                        asap.send({ prompt, "sessionId":session_id_old }, options_short);
+                        // asap.send({ prompt, "sessionId": session_id_old }, options_short);
+                        if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+                            messaging.peerSocket.send({ prompt, "sessionId": session_id_old });
+                        }
 
                         setResponseLayout(false, RING);
                     }, SNOOZETIME);
@@ -393,7 +507,7 @@ asap.onmessage = message => {
 
 //function to set the mini-sessions
 function setMiniSession() {
-    console.log("Mini-session starts!");
+    debug && console.log("Mini-session starts!");
     miniSession = true;
     miniSteps = 0;
     miniTimer = 1;
@@ -405,7 +519,7 @@ function startNewSession() {
     session_id_old = session_id_new;
     session_id_new = util.guid();
     // initialize the variables/counters
-    console.log("The new session starts!");
+    debug && console.log("The new session starts!");
     timeCounter = 1;
     lastStepCount = 0;
     initialValue = today.adjusted.steps;
@@ -430,10 +544,15 @@ function collectData() {
         if (diff != 0) {
             let type = 2;
             let sensorData = diff;
-            let data = { timeStamp, "sessionId":session_id_new, type, sensorData };
-            if (checkTime()) asap.send(JSON.parse(JSON.stringify(data)), options_long);
+            let data = { timeStamp, "sessionId": session_id_new, type, sensorData };
+            if (checkTime()) {
+                asap.send(JSON.parse(JSON.stringify(data)), options_long);
+                // num_total += 1
+
+            }
+
         }
-        console.log("Time is: " + timeCounter + ", step count is: " + stepData + ", diff is: " + diff);
+        debug && console.log("Time is: " + timeCounter + ", step count is: " + stepData + ", diff is: " + diff);
 
         // check for mini-session
         if (miniSession) {
@@ -443,13 +562,20 @@ function collectData() {
                 if (!isNoDisturb) {
 
                     let prompt = MINIMESSAGE;
-                    if (checkTime()) asap.send({ prompt, "sessionId":session_id_old }, options_short);
+                    // if (checkTime()) asap.send({ prompt, "sessionId": session_id_old }, options_short);
+                    if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+                        messaging.peerSocket.send({ prompt, "sessionId": session_id_old });
+                    }
 
                 }
                 let type = 3;
                 let sensorData = miniSteps;
-                let data = { timeStamp, "sessionId":session_id_old, type, sensorData };
-                if (checkTime()) asap.send(JSON.parse(JSON.stringify(data)), options_long);
+                let data = { timeStamp, "sessionId": session_id_old, type, sensorData };
+                if (checkTime()) {
+                    asap.send(JSON.parse(JSON.stringify(data)), options_long);
+                    // num_total += 1
+
+                }
                 if (!isNoDisturb) {
                     setFeedbackLayout(PING, APPRAISAL);
                 }
@@ -458,8 +584,12 @@ function collectData() {
                 miniSession = false;
                 let type = 3;
                 let sensorData = miniSteps;
-                let data = { timeStamp, "sessionId":session_id_old, type, sensorData };
-                if (checkTime()) asap.send(JSON.parse(JSON.stringify(data)), options_long);
+                let data = { timeStamp, "sessionId": session_id_old, type, sensorData };
+                if (checkTime()) {
+                    asap.send(JSON.parse(JSON.stringify(data)), options_long);
+                    // num_total += 1
+
+                }
             }
             miniTimer = miniTimer + 1;
         }
@@ -468,8 +598,12 @@ function collectData() {
             startNewSession();
             let type = curInterval == ONEHOUR ? 0 : 1;
             let sensorData = stepData;
-            let data = { timeStamp, "sessionId":session_id_old, type, sensorData };
-            if (checkTime()) asap.send(JSON.parse(JSON.stringify(data)), options_long);
+            let data = { timeStamp, "sessionId": session_id_old, type, sensorData };
+            if (checkTime()) {
+                asap.send(JSON.parse(JSON.stringify(data)), options_long);
+                // num_total += 1
+
+            }
             setMainLayout();
             return;
         }
@@ -480,13 +614,19 @@ function collectData() {
             if (!isNoDisturb) {
 
                 let prompt = NOTIFICATION;
-                asap.send({ prompt, "sessionId":session_id_old }, options_short);
+                // asap.send({ prompt, "sessionId": session_id_old }, options_short);
+                if (messaging.peerSocket.readyState === messaging.peerSocket.OPEN) {
+                    messaging.peerSocket.send({ prompt, "sessionId": session_id_old });
+                }
 
             }
             let type = curInterval == ONEHOUR ? 0 : 1;
             let sensorData = stepData;
-            let data = { timeStamp, "sessionId":session_id_old, type, sensorData };
-            if (checkTime()) asap.send(JSON.parse(JSON.stringify(data)), options_long);
+            let data = { timeStamp, "sessionId": session_id_old, type, sensorData };
+            if (checkTime()) {
+                asap.send(JSON.parse(JSON.stringify(data)), options_long);
+                // num_total += 1
+            }
             if (!isNoDisturb) {
                 setResponseLayout(true, RING);
             }
@@ -497,13 +637,16 @@ function collectData() {
         timeCounter = timeCounter + 1;
     } else {
         isSessionOn = false;
+        // screenColor.href = "black.jpeg"
         clearInterval(handle);
-        console.log("Sleeping mode...");
+        debug && console.log("Sleeping mode...");
     }
 }
 
 
+
 // Initialize the app...
+retrieveTimeScheduleAndNextInterval();
 setMainLayout();
 // hrm.start();
 batteryLevel.text = Math.floor(battery.chargeLevel) + "%";
