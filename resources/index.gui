@@ -1,6 +1,6 @@
-<!-- <svg class="background"> -->
-<svg>
-  <image id="background" href="black.jpeg" />
+<svg class="background">
+<!-- <svg>
+  <image id="background" href="black.jpeg" /> -->
 <!--   symbol for the main layout on the watch -->
   <defs>
     <symbol id="main-screen">
